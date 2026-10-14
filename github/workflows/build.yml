@@ -1,0 +1,239 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get source
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Create Android project
+        run: |
+          mkdir -p app/src/main/java/com/example/vzakhlebai
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'VzakhlebAI'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.example.vzakhlebai'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.example.vzakhlebai'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:theme="@android:style/Theme.Material.NoActionBar"
+                  android:label="Взахлёб AI"
+                  android:usesCleartextTraffic="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/vzakhlebai/MainActivity.java <<'EOF'
+          package com.example.vzakhlebai;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.*;
+
+          public class MainActivity extends Activity {
+              LinearLayout messages;
+              ScrollView scroll;
+              EditText input;
+              int white = Color.WHITE;
+              int purple = Color.rgb(166, 91, 255);
+
+              int dp(float n) {
+                  return (int)(n * getResources().getDisplayMetrics().density);
+              }
+
+              GradientDrawable shape(int color, int radius) {
+                  GradientDrawable d = new GradientDrawable();
+                  d.setColor(color);
+                  d.setCornerRadius(dp(radius));
+                  return d;
+              }
+
+              TextView text(String value, int size) {
+                  TextView t = new TextView(this);
+                  t.setText(value);
+                  t.setTextSize(size);
+                  t.setTextColor(white);
+                  return t;
+              }
+
+              void bubble(String value, boolean user) {
+                  TextView t = text(value, 16);
+                  t.setPadding(dp(14), dp(11), dp(14), dp(11));
+                  t.setBackground(shape(
+                      user ? Color.rgb(100, 49, 160)
+                           : Color.rgb(39, 35, 49), 18));
+
+                  LinearLayout.LayoutParams p =
+                      new LinearLayout.LayoutParams(
+                          -2, -2, 0);
+                  p.gravity = user ? Gravity.RIGHT : Gravity.LEFT;
+                  p.setMargins(dp(5), dp(5), dp(5), dp(5));
+                  t.setMaxWidth(getResources()
+                      .getDisplayMetrics().widthPixels - dp(65));
+                  messages.addView(t, p);
+                  scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+              }
+
+              @Override
+              public void onCreate(Bundle state) {
+                  super.onCreate(state);
+                  getWindow().setStatusBarColor(Color.rgb(12, 10, 17));
+                  getWindow().setNavigationBarColor(Color.rgb(12, 10, 17));
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(16), dp(12), dp(16), dp(12));
+                  root.setBackgroundColor(Color.rgb(15, 12, 21));
+                  setContentView(root);
+
+                  TextView title = text("ВЗАХЛЁБ AI", 25);
+                  title.setTypeface(null, Typeface.BOLD);
+                  title.setTextColor(purple);
+                  root.addView(title);
+
+                  TextView subtitle = text(
+                      "ТВОИ ПЕРСОНАЖИ. ТВОИ ИСТОРИИ.", 11);
+                  subtitle.setTextColor(Color.LTGRAY);
+                  root.addView(subtitle);
+
+                  scroll = new ScrollView(this);
+                  LinearLayout.LayoutParams sp =
+                      new LinearLayout.LayoutParams(-1, 0, 1);
+                  sp.topMargin = dp(18);
+                  root.addView(scroll, sp);
+
+                  messages = new LinearLayout(this);
+                  messages.setOrientation(LinearLayout.VERTICAL);
+                  scroll.addView(messages);
+
+                  bubble("Привет! 👋 Добро пожаловать в Взахлёб AI. "
+                      + "Здесь можно будет создавать персонажей "
+                      + "и разыгрывать собственные истории.", false);
+
+                  LinearLayout row = new LinearLayout(this);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setPadding(0, dp(10), 0, 0);
+                  root.addView(row);
+
+                  input = new EditText(this);
+                  input.setSingleLine(false);
+                  input.setMaxLines(3);
+                  input.setTextColor(white);
+                  input.setHintTextColor(Color.LTGRAY);
+                  input.setHint("Напиши сообщение...");
+                  input.setPadding(dp(13), dp(8), dp(13), dp(8));
+                  input.setBackground(shape(
+                      Color.rgb(39, 35, 49), 18));
+
+                  row.addView(input,
+                      new LinearLayout.LayoutParams(0, -2, 1));
+
+                  Button send = new Button(this);
+                  send.setText("➤");
+                  send.setTextColor(white);
+                  send.setBackground(shape(
+                      Color.rgb(115, 54, 190), 18));
+                  LinearLayout.LayoutParams bp =
+                      new LinearLayout.LayoutParams(dp(60), dp(52));
+                  bp.setMargins(dp(8), 0, 0, 0);
+                  row.addView(send, bp);
+
+                  send.setOnClickListener(v -> {
+                      String msg = input.getText().toString().trim();
+                      if (msg.isEmpty()) return;
+                      bubble(msg, true);
+                      input.setText("");
+                      bubble("Сообщение принято! Подключение настоящего "
+                          + "ИИ-персонажа ещё предстоит настроить.", false);
+                  });
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug
+
+      - name: Save APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VzakhlebAI-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
